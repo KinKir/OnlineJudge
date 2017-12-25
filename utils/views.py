@@ -1,37 +1,44 @@
-# coding=utf-8
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
+import os
 from django.conf import settings
-
+from account.serializers import ImageUploadForm
 from utils.shortcuts import rand_str
+from utils.api import CSRFExemptAPIView
 import logging
 
-logger = logging.getLogger("app_info")
+logger = logging.getLogger(__name__)
 
 
-class SimditorImageUploadAPIView(APIView):
+class SimditorImageUploadAPIView(CSRFExemptAPIView):
+    request_parsers = ()
+
     def post(self, request):
-        if "image" not in request.FILES:
-            return Response(data={
+        form = ImageUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            img = form.cleaned_data["image"]
+        else:
+            return self.response({
                 "success": False,
-                "msg": "上传失败",
-                "file_path": "/"})
-        img = request.FILES["image"]
+                "msg": "Upload failed",
+                "file_path": ""})
 
-        image_name = rand_str() + '.' + str(request.FILES["image"].name.split('.')[-1])
-        image_dir = settings.IMAGE_UPLOAD_DIR + image_name
+        suffix = os.path.splitext(img.name)[-1].lower()
+        if suffix not in [".gif", ".jpg", ".jpeg", ".bmp", ".png"]:
+            return self.response({
+                "success": False,
+                "msg": "Unsupported file format",
+                "file_path": ""})
+        img_name = rand_str(10) + suffix
         try:
-            with open(image_dir, "wb") as imageFile:
+            with open(os.path.join(settings.UPLOAD_DIR, img_name), "wb") as imgFile:
                 for chunk in img:
-                    imageFile.write(chunk)
+                    imgFile.write(chunk)
         except IOError as e:
             logger.error(e)
-            return Response(data={
+            return self.response({
                 "success": True,
-                "msg": "上传错误",
-                "file_path": "/static/upload/" + image_name})
-        return Response(data={
+                "msg": "Upload Error",
+                "file_path": f"{settings.UPLOAD_PREFIX}/{img_name}"})
+        return self.response({
             "success": True,
-            "msg": "",
-            "file_path": "/static/upload/" + image_name})
+            "msg": "Success",
+            "file_path": f"{settings.UPLOAD_PREFIX}/{img_name}"})

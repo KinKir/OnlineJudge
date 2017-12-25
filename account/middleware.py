@@ -1,23 +1,50 @@
-# coding=utf-8
-import time
-import json
-import urllib
-from django.http import HttpResponseRedirect, HttpResponse
-from django.contrib import auth
-from .models import ADMIN
+from django.db import connection
+from django.utils.timezone import now
+from django.utils.deprecation import MiddlewareMixin
+
+from utils.api import JSONResponse
+from account.models import User
 
 
-class SessionSecurityMiddleware(object):
+class APITokenAuthMiddleware(MiddlewareMixin):
     def process_request(self, request):
-        if request.user.is_authenticated() and request.user.admin_type >= ADMIN:
-            if "last_activity" in request.session:
-                # 24个小时没有活动
-                if time.time() - request.session["last_activity"] >= 24 * 60 * 60:
-                    auth.logout(request)
-                    if request.is_ajax():
-                        return HttpResponse(json.dumps({"code": 1, "data": u"请先登录"}),
-                                            content_type="application/json")
-                    else:
-                        return HttpResponseRedirect("/login/?__from=" + urllib.quote(request.path))
-            # 更新最后活动日期
-            request.session["last_activity"] = time.time()
+        appkey = request.META.get("HTTP_APPKEY")
+        if appkey:
+            try:
+                request.user = User.objects.get(open_api_appkey=appkey, open_api=True, is_disabled=False)
+                request.csrf_processing_done = True
+            except User.DoesNotExist:
+                pass
+
+
+class SessionRecordMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        if request.user.is_authenticated():
+            session = request.session
+            session["user_agent"] = request.META.get("HTTP_USER_AGENT", "")
+            session["ip"] = request.META.get("HTTP_X_REAL_IP", request.META.get("REMOTE_ADDR"))
+            session["last_activity"] = now()
+            user_sessions = request.user.session_keys
+            if session.session_key not in user_sessions:
+                user_sessions.append(session.session_key)
+                request.user.save()
+
+
+class AdminRoleRequiredMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        path = request.path_info
+        if path.startswith("/admin/") or path.startswith("/api/admin/"):
+            if not (request.user.is_authenticated() and request.user.is_admin_role()):
+                return JSONResponse.response({"error": "login-required", "data": "Please login in first"})
+
+
+class LogSqlMiddleware(MiddlewareMixin):
+    def process_response(self, request, response):
+        print("\033[94m", "#" * 30, "\033[0m")
+        time_threshold = 0.03
+        for query in connection.queries:
+            if float(query["time"]) > time_threshold:
+                print("\033[93m", query, "\n", "-" * 30, "\033[0m")
+            else:
+                print(query, "\n", "-" * 30)
+        return response

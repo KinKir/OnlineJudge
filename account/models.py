@@ -1,90 +1,118 @@
-# coding=utf-8
-from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
+from django.conf import settings
+from django.db import models
+from utils.models import JSONField
 
-from jsonfield import JSONField
+
+class AdminType(object):
+    REGULAR_USER = "Regular User"
+    ADMIN = "Admin"
+    SUPER_ADMIN = "Super Admin"
+
+
+class ProblemPermission(object):
+    NONE = "None"
+    OWN = "Own"
+    ALL = "All"
 
 
 class UserManager(models.Manager):
     use_in_migrations = True
 
     def get_by_natural_key(self, username):
-        return self.get(**{self.model.USERNAME_FIELD: username})
-
-
-REGULAR_USER = 0
-ADMIN = 1
-SUPER_ADMIN = 2
+        return self.get(**{f"{self.model.USERNAME_FIELD}__iexact": username})
 
 
 class User(AbstractBaseUser):
-    # 用户名
-    username = models.CharField(max_length=30, unique=True)
-    # 真实姓名
-    real_name = models.CharField(max_length=30, blank=True, null=True)
-    # 用户邮箱
-    email = models.EmailField(max_length=254, blank=True, null=True)
-    # 用户注册时间
+    username = models.CharField(max_length=32, unique=True)
+    email = models.EmailField(max_length=64, null=True)
     create_time = models.DateTimeField(auto_now_add=True, null=True)
-    # 0代表不是管理员 1是普通管理员 2是超级管理员
-    admin_type = models.IntegerField(default=0)
-    # JSON字典用来表示该用户的问题的解决状态 1为ac，2为正在进行
-    problems_status = JSONField(default={})
-    # 找回密码用的token
-    reset_password_token = models.CharField(max_length=40, blank=True, null=True)
-    # token 生成时间
-    reset_password_token_create_time = models.DateTimeField(blank=True, null=True)
-    # SSO授权token
-    auth_token = models.CharField(max_length=40, blank=True, null=True)
-    # 是否开启两步验证
+    # One of UserType
+    admin_type = models.CharField(max_length=32, default=AdminType.REGULAR_USER)
+    problem_permission = models.CharField(max_length=32, default=ProblemPermission.NONE)
+    reset_password_token = models.CharField(max_length=32, null=True)
+    reset_password_token_expire_time = models.DateTimeField(null=True)
+    # SSO auth token
+    auth_token = models.CharField(max_length=32, null=True)
     two_factor_auth = models.BooleanField(default=False)
-    tfa_token = models.CharField(max_length=40, blank=True, null=True)
+    tfa_token = models.CharField(max_length=32, null=True)
+    session_keys = JSONField(default=list)
     # open api key
-    openapi_appkey = models.CharField(max_length=35, blank=True, null=True)
-    # 是否禁用用户
-    is_forbidden = models.BooleanField(default=False)
+    open_api = models.BooleanField(default=False)
+    open_api_appkey = models.CharField(max_length=32, null=True)
+    is_disabled = models.BooleanField(default=False)
 
-    USERNAME_FIELD = 'username'
+    USERNAME_FIELD = "username"
     REQUIRED_FIELDS = []
 
     objects = UserManager()
+
+    def is_admin(self):
+        return self.admin_type == AdminType.ADMIN
+
+    def is_super_admin(self):
+        return self.admin_type == AdminType.SUPER_ADMIN
+
+    def is_admin_role(self):
+        return self.admin_type in [AdminType.ADMIN, AdminType.SUPER_ADMIN]
+
+    def can_mgmt_all_problem(self):
+        return self.problem_permission == ProblemPermission.ALL
+
+    def is_contest_admin(self, contest):
+        return self.is_authenticated() and (contest.created_by == self or self.admin_type == AdminType.SUPER_ADMIN)
 
     class Meta:
         db_table = "user"
 
 
-def _random_avatar():
-    import random
-    return "/static/img/avatar/avatar-" + str(random.randint(1, 20)) + ".png"
-
-
 class UserProfile(models.Model):
-    user = models.OneToOneField(User)
-    avatar = models.CharField(max_length=50, default=_random_avatar)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    # acm_problems_status examples:
+    # {
+    #     "problems": {
+    #         "1": {
+    #             "status": JudgeStatus.ACCEPTED,
+    #             "_id": "1000"
+    #         }
+    #     },
+    #     "contest_problems": {
+    #         "1": {
+    #             "status": JudgeStatus.ACCEPTED,
+    #             "_id": "1000"
+    #         }
+    #     }
+    # }
+    acm_problems_status = JSONField(default=dict)
+    # like acm_problems_status, merely add "score" field
+    oi_problems_status = JSONField(default=dict)
+
+    real_name = models.CharField(max_length=32, blank=True, null=True)
+    avatar = models.CharField(max_length=256, default=f"{settings.AVATAR_URI_PREFIX}/default.png")
     blog = models.URLField(blank=True, null=True)
-    mood = models.CharField(max_length=200, blank=True, null=True)
-    hduoj_username = models.CharField(max_length=30, blank=True, null=True)
-    bestcoder_username = models.CharField(max_length=30, blank=True, null=True)
-    codeforces_username = models.CharField(max_length=30, blank=True, null=True)
-    accepted_problem_number = models.IntegerField(default=0)
+    mood = models.CharField(max_length=256, blank=True, null=True)
+    github = models.CharField(max_length=64, blank=True, null=True)
+    school = models.CharField(max_length=64, blank=True, null=True)
+    major = models.CharField(max_length=64, blank=True, null=True)
+    # for ACM
+    accepted_number = models.IntegerField(default=0)
+    # for OI
+    total_score = models.BigIntegerField(default=0)
     submission_number = models.IntegerField(default=0)
-    # JSON字典用来表示该用户的问题的解决状态 1为ac，2为正在进行
-    problems_status = JSONField(default={})
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
-    school = models.CharField(max_length=200, blank=True, null=True)
-    student_id = models.CharField(max_length=15, blank=True, null=True)
 
     def add_accepted_problem_number(self):
-        self.accepted_problem_number += 1
-        self.save(update_fields=["accepted_problem_number"])
+        self.accepted_number = models.F("accepted_number") + 1
+        self.save()
 
     def add_submission_number(self):
-        self.submission_number += 1
-        self.save(update_fields=["submission_number"])
+        self.submission_number = models.F("submission_number") + 1
+        self.save()
 
-    def minus_accepted_problem_number(self):
-        self.accepted_problem_number -= 1
-        self.save(update_fields=["accepted_problem_number"])
+    # 计算总分时， 应先减掉上次该题所得分数， 然后再加上本次所得分数
+    def add_score(self, this_time_score, last_time_score=None):
+        last_time_score = last_time_score or 0
+        self.total_score = models.F("total_score") - last_time_score + this_time_score
+        self.save()
 
     class Meta:
         db_table = "user_profile"

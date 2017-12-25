@@ -1,9 +1,8 @@
-# coding=utf-8
+from __future__ import print_function
 import time
-import redis
 
 
-class TokenBucket(object):
+class TokenBucket:
     def __init__(self, fill_rate, capacity, last_capacity, last_timestamp):
         self.capacity = float(capacity)
         self._left_tokens = last_capacity
@@ -31,12 +30,11 @@ class TokenBucket(object):
         return self._left_tokens
 
 
-class BucketController(object):
-    def __init__(self, user_id, redis_conn, default_capacity):
-        self.user_id = user_id
+class BucketController:
+    def __init__(self, factor, redis_conn, default_capacity):
         self.default_capacity = default_capacity
         self.redis = redis_conn
-        self.key = "bucket_" + str(self.user_id)
+        self.key = "bucket_" + str(factor)
 
     @property
     def last_capacity(self):
@@ -65,14 +63,13 @@ class BucketController(object):
 
 
 """
-# token bucket 机制限制用户提交大量代码
-# demo
+# # Token bucket, to limit submission rate
+# # Demo
+
 success = failure = 0
 current_user_id = 1
 token_bucket_default_capacity = 50
 token_bucket_fill_rate = 10
-
-
 for i in range(5000):
     controller = BucketController(user_id=current_user_id,
                                   redis_conn=redis.Redis(),
@@ -81,14 +78,13 @@ for i in range(5000):
                          capacity=token_bucket_default_capacity,
                          last_capacity=controller.last_capacity,
                          last_timestamp=controller.last_timestamp)
-
     time.sleep(0.05)
     if bucket.consume():
         success += 1
-        print i, ": Accepted"
+        print(i, ": Accepted")
         controller.last_capacity -= 1
     else:
         failure += 1
-        print i, "Dropped, time left ", bucket.expected_time()
-print success, failure
+        print(i, "Dropped, time left ", bucket.expected_time())
+print(success, failure)
 """

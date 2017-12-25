@@ -1,33 +1,53 @@
-# coding=utf-8
 from django.db import models
+from utils.models import JSONField
+from problem.models import Problem
+from contest.models import Contest
+
 from utils.shortcuts import rand_str
-from judge.result import result
+
+
+class JudgeStatus:
+    COMPILE_ERROR = -2
+    WRONG_ANSWER = -1
+    ACCEPTED = 0
+    CPU_TIME_LIMIT_EXCEEDED = 1
+    REAL_TIME_LIMIT_EXCEEDED = 2
+    MEMORY_LIMIT_EXCEEDED = 3
+    RUNTIME_ERROR = 4
+    SYSTEM_ERROR = 5
+    PENDING = 6
+    JUDGING = 7
+    PARTIALLY_ACCEPTED = 8
 
 
 class Submission(models.Model):
     id = models.CharField(max_length=32, default=rand_str, primary_key=True, db_index=True)
-    user_id = models.IntegerField(db_index=True)
+    contest = models.ForeignKey(Contest, null=True)
+    problem = models.ForeignKey(Problem)
     create_time = models.DateTimeField(auto_now_add=True)
-    # 判题开始时间
-    judge_start_time = models.BigIntegerField(blank=True, null=True)
-    # 判题结束时间
-    judge_end_time = models.BigIntegerField(blank=True, null=True)
-    result = models.IntegerField(default=result["waiting"])
-    language = models.IntegerField()
+    user_id = models.IntegerField(db_index=True)
+    username = models.CharField(max_length=30)
     code = models.TextField()
-    contest_id = models.IntegerField(blank=True, null=True)
-    problem_id = models.IntegerField(db_index=True)
-    # 这个字段可能存储很多数据 比如编译错误、系统错误的时候，存储错误原因字符串
-    # 正常运行的时候存储判题结果，比如cpu时间内存之类的
-    info = models.TextField(blank=True, null=True)
-    accepted_answer_time = models.IntegerField(blank=True, null=True)
-    # 这个字段只有在题目是accepted 的时候才会用到，比赛题目的提交可能还会有得分等信息，存储在这里面
-    accepted_answer_info = models.TextField(blank=True, null=True)
-    # 是否可以分享
+    result = models.IntegerField(db_index=True, default=JudgeStatus.PENDING)
+    # 从JudgeServer返回的判题详情
+    info = JSONField(default=dict)
+    language = models.CharField(max_length=20)
     shared = models.BooleanField(default=False)
+    # 存储该提交所用时间和内存值，方便提交列表显示
+    # {time_cost: "", memory_cost: "", err_info: "", score: 0}
+    statistic_info = JSONField(default=dict)
+    ip = models.CharField(max_length=32, null=True, blank=True)
+
+    def check_user_permission(self, user, check_share=True):
+        return self.user_id == user.id or \
+               (check_share and self.shared is True) or \
+               user.is_super_admin() or \
+               user.can_mgmt_all_problem() or \
+               self.problem.created_by_id == user.id
 
     class Meta:
         db_table = "submission"
+        ordering = ("-create_time",)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.id

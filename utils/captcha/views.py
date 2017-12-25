@@ -1,8 +1,8 @@
-# coding=utf-8
-from django.http import HttpResponse
+from . import Captcha
+from ..api import APIView
+from ..shortcuts import img2base64
 
-from utils.captcha import Captcha
 
-
-def show_captcha(request):
-    return HttpResponse(Captcha(request).display(), content_type="image/gif")
+class CaptchaAPIView(APIView):
+    def get(self, request):
+        return self.success(img2base64(Captcha(request).get()))

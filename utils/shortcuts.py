@@ -1,122 +1,33 @@
-# coding=utf-8
-import os
-import hashlib
-import time
+import re
+import datetime
 import random
-import logging
+from base64 import b64encode
+from io import BytesIO
 
-from django.shortcuts import render
-from django.core.paginator import Paginator
-
-from rest_framework.response import Response
+from django.utils.crypto import get_random_string
 
 
-logger = logging.getLogger("app_info")
-
-
-def error_page(request, error_reason):
-    return render(request, "utils/error.html", {"error": error_reason})
-
-
-def error_response(error_reason):
-    return Response(data={"code": 1, "data": error_reason})
-
-
-def serializer_invalid_response(serializer):
-    for k, v in serializer.errors.iteritems():
-        return error_response(k + " : " + v[0])
-
-
-def success_response(data):
-    return Response(data={"code": 0, "data": data})
-
-
-def paginate_data(request, query_set, object_serializer):
+def rand_str(length=32, type="lower_hex"):
     """
-    用于分页的函数
-    如果 url 里面不含有paging=true，那么将返回全部数据。类似
-    [
-        {
-            "username": "1111111",
-            "password": "123456"
-        }
-    ]
-    如果 url 中有 paging=true 的参数，
-    然后还需要读取其余的两个参数，page=[int]，需要的页码，p
-    age_size=[int]，一页的数据条数
-
-    :param query_set 数据库查询结果
-    :param object_serializer: 序列化单个object的serializer
+    生成指定长度的随机字符串或者数字, 可以用于密钥等安全场景
+    :param length: 字符串或者数字的长度
+    :param type: str 代表随机字符串，num 代表随机数字
+    :return: 字符串
     """
-    need_paginate = request.GET.get("paging", None)
-    # 如果请求的参数里面没有paging=true的话 就返回全部数据
-    if need_paginate != "true":
-        if object_serializer:
-            return object_serializer(query_set, many=True).data
-        else:
-            return query_set
-
-    page_size = request.GET.get("page_size", None)
-    if not page_size:
-        raise ValueError("Error parameter page_size")
-
-    try:
-        page_size = int(page_size)
-    except Exception:
-        raise ValueError("Error parameter page_size")
-
-    paginator = Paginator(query_set, page_size)
-    page = request.GET.get("page", None)
-
-    try:
-        current_page = paginator.page(page)
-    except Exception:
-        raise ValueError("Error parameter current_page")
-    if object_serializer:
-        results = object_serializer(current_page, many=True).data
+    if type == "str":
+        return get_random_string(length, allowed_chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+    elif type == "lower_str":
+        return get_random_string(length, allowed_chars="abcdefghijklmnopqrstuvwxyz0123456789")
+    elif type == "lower_hex":
+        return random.choice("123456789abcdef") + get_random_string(length - 1, allowed_chars="0123456789abcdef")
     else:
-        results = current_page
-
-    data = {"results": results,
-            "previous_page": None,
-            "next_page": None,
-            "page_size": page_size,
-            "current_page": page,
-            "count": paginator.count,
-            "total_page": paginator.num_pages}
-
-    try:
-        data["previous_page"] = current_page.previous_page_number()
-    except Exception:
-        pass
-
-    try:
-        data["next_page"] = current_page.next_page_number()
-    except Exception:
-        pass
-
-    return data
-
-
-def paginate(request, query_set, object_serializer=None):
-    try:
-        data= paginate_data(request, query_set, object_serializer)
-    except Exception as e:
-        logger.error(str(e))
-        return error_response(u"参数错误")
-    return success_response(data)
-
-
-def rand_str(length=32):
-    if length > 128:
-        raise ValueError("length must <= 128")
-    return hashlib.sha512(os.urandom(128)).hexdigest()[0:length]
+        return random.choice("123456789") + get_random_string(length - 1, allowed_chars="0123456789")
 
 
 def build_query_string(kv_data, ignore_none=True):
     # {"a": 1, "b": "test"} -> "?a=1&b=test"
     query_string = ""
-    for k, v in kv_data.iteritems():
+    for k, v in kv_data.items():
         if ignore_none is True and kv_data[k] is None:
             continue
         if query_string != "":
@@ -125,3 +36,30 @@ def build_query_string(kv_data, ignore_none=True):
             query_string = "?"
         query_string += (k + "=" + str(v))
     return query_string
+
+
+def img2base64(img):
+    with BytesIO() as buf:
+        img.save(buf, "gif")
+        buf_str = buf.getvalue()
+    img_prefix = "data:image/png;base64,"
+    b64_str = img_prefix + b64encode(buf_str).decode("utf-8")
+    return b64_str
+
+
+def datetime2str(value, format="iso-8601"):
+    if format.lower() == "iso-8601":
+        value = value.isoformat()
+        if value.endswith("+00:00"):
+            value = value[:-6] + "Z"
+        return value
+    return value.strftime(format)
+
+
+def timestamp2utcstr(value):
+    return datetime.datetime.utcfromtimestamp(value).isoformat()
+
+
+def natural_sort_key(s, _nsre=re.compile(r"(\d+)")):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(_nsre, s)]

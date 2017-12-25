@@ -1,94 +1,139 @@
-# coding=utf-8
-from rest_framework import serializers
+from django import forms
 
-from .models import User, UserProfile
+from utils.api import serializers, UsernameSerializer
+
+from .models import AdminType, ProblemPermission, User, UserProfile
 
 
 class UserLoginSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=30)
-    password = serializers.CharField(max_length=30)
-    tfa_code = serializers.CharField(min_length=6, max_length=6, required=False)
+    username = serializers.CharField()
+    password = serializers.CharField()
+    tfa_code = serializers.CharField(required=False, allow_blank=True)
 
 
-class UsernameCheckSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=30)
-
-
-class EmailCheckSerializer(serializers.Serializer):
-    email = serializers.EmailField(max_length=254)
+class UsernameOrEmailCheckSerializer(serializers.Serializer):
+    username = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
 
 
 class UserRegisterSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=30)
-    real_name = serializers.CharField(max_length=30)
-    school = serializers.CharField(max_length=200, required=False, default=None)
-    password = serializers.CharField(max_length=30, min_length=6)
-    email = serializers.EmailField(max_length=254)
-    captcha = serializers.CharField(max_length=4, min_length=4)
-    student_id = serializers.CharField(max_length=15, required=False, default=None)
+    username = serializers.CharField(max_length=32)
+    password = serializers.CharField(min_length=6)
+    email = serializers.EmailField(max_length=64)
+    captcha = serializers.CharField()
 
 
 class UserChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField()
-    new_password = serializers.CharField(max_length=30, min_length=6)
-    captcha = serializers.CharField(max_length=4, min_length=4)
+    new_password = serializers.CharField(min_length=6)
+    tfa_code = serializers.CharField(required=False, allow_blank=True)
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserChangeEmailSerializer(serializers.Serializer):
+    password = serializers.CharField()
+    new_email = serializers.EmailField(max_length=64)
+    tfa_code = serializers.CharField(required=False, allow_blank=True)
+
+
+class GenerateUserSerializer(serializers.Serializer):
+    prefix = serializers.CharField(max_length=16, allow_blank=True)
+    suffix = serializers.CharField(max_length=16, allow_blank=True)
+    number_from = serializers.IntegerField()
+    number_to = serializers.IntegerField()
+    password_length = serializers.IntegerField(max_value=16, default=8)
+
+
+class ImportUserSeralizer(serializers.Serializer):
+    users = serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField(max_length=64)))
+
+
+class UserAdminSerializer(serializers.ModelSerializer):
+    real_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "real_name", "email", "admin_type",
-                  "create_time", "last_login", "two_factor_auth", "openapi_appkey", "is_forbidden"]
+        fields = ["id", "username", "email", "admin_type", "problem_permission", "real_name",
+                  "create_time", "last_login", "two_factor_auth", "open_api", "is_disabled"]
+
+    def get_real_name(self, obj):
+        return obj.userprofile.real_name
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "admin_type", "problem_permission",
+                  "create_time", "last_login", "two_factor_auth", "open_api", "is_disabled"]
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer()
+    real_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        self.show_real_name = kwargs.pop("show_real_name", False)
+        super(UserProfileSerializer, self).__init__(*args, **kwargs)
+
+    def get_real_name(self, obj):
+        return obj.real_name if self.show_real_name else None
 
 
 class EditUserSerializer(serializers.Serializer):
     id = serializers.IntegerField()
-    username = serializers.CharField(max_length=30)
-    real_name = serializers.CharField(max_length=30)
-    password = serializers.CharField(max_length=30, min_length=6, required=False, default=None)
-    email = serializers.EmailField(max_length=254)
-    admin_type = serializers.IntegerField(default=0)
-    openapi = serializers.BooleanField()
-    tfa_auth = serializers.BooleanField()
-    is_forbidden = serializers.BooleanField()
+    username = serializers.CharField(max_length=32)
+    real_name = serializers.CharField(max_length=32, allow_blank=True)
+    password = serializers.CharField(min_length=6, allow_blank=True, required=False, default=None)
+    email = serializers.EmailField(max_length=64)
+    admin_type = serializers.ChoiceField(choices=(AdminType.REGULAR_USER, AdminType.ADMIN, AdminType.SUPER_ADMIN))
+    problem_permission = serializers.ChoiceField(choices=(ProblemPermission.NONE, ProblemPermission.OWN,
+                                                          ProblemPermission.ALL))
+    open_api = serializers.BooleanField()
+    two_factor_auth = serializers.BooleanField()
+    is_disabled = serializers.BooleanField()
+
+
+class EditUserProfileSerializer(serializers.Serializer):
+    real_name = serializers.CharField(max_length=32, allow_null=True, required=False)
+    avatar = serializers.CharField(max_length=256, allow_blank=True, required=False)
+    blog = serializers.URLField(max_length=256, allow_blank=True, required=False)
+    mood = serializers.CharField(max_length=256, allow_blank=True, required=False)
+    github = serializers.CharField(max_length=64, allow_blank=True, required=False)
+    school = serializers.CharField(max_length=64, allow_blank=True, required=False)
+    major = serializers.CharField(max_length=64, allow_blank=True, required=False)
 
 
 class ApplyResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    captcha = serializers.CharField(max_length=4, min_length=4)
+    captcha = serializers.CharField()
 
 
 class ResetPasswordSerializer(serializers.Serializer):
-    token = serializers.CharField(min_length=1, max_length=40)
-    password = serializers.CharField(min_length=6, max_length=30)
-    captcha = serializers.CharField(max_length=4, min_length=4)
+    token = serializers.CharField()
+    password = serializers.CharField(min_length=6)
+    captcha = serializers.CharField()
 
 
 class SSOSerializer(serializers.Serializer):
-    appkey = serializers.CharField(max_length=35)
-    token = serializers.CharField(max_length=40)
-
-
-class EditUserProfileSerializer(serializers.Serializer):
-    avatar = serializers.CharField(max_length=50, required=False, default=None)
-    blog = serializers.URLField(required=False, allow_blank=True, default='')
-    mood = serializers.CharField(max_length=60, required=False, allow_blank=True, default='')
-    hduoj_username = serializers.CharField(max_length=30, required=False, allow_blank=True, default='')
-    bestcoder_username = serializers.CharField(max_length=30, required=False, allow_blank=True, default='')
-    codeforces_username = serializers.CharField(max_length=30, required=False, allow_blank=True, default='')
-    school = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
-    phone_number = serializers.CharField(max_length=15, required=False, allow_blank=True, default='')
-    student_id = serializers.CharField(max_length=15, required=False, allow_blank=True, default="")
-
-
-class UserProfileSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = UserProfile
-        fields = ["avatar", "blog", "mood", "hduoj_username", "bestcoder_username", "codeforces_username",
-                  "rank", "accepted_number", "submissions_number", "problems_status", "phone_number", "school", "student_id"]
+    appkey = serializers.CharField()
+    token = serializers.CharField()
 
 
 class TwoFactorAuthCodeSerializer(serializers.Serializer):
     code = serializers.IntegerField()
+
+
+class ImageUploadForm(forms.Form):
+    image = forms.FileField()
+
+
+class RankInfoSerializer(serializers.ModelSerializer):
+    user = UsernameSerializer()
+
+    class Meta:
+        model = UserProfile
+        fields = "__all__"

@@ -1,39 +1,85 @@
-# OnlineJudge [![Build Status](https://travis-ci.org/QingdaoU/OnlineJudge.svg?branch=master)](https://travis-ci.org/QingdaoU/OnlineJudge)
+# OnlineJudge 2.0
 
+[![Python](https://img.shields.io/badge/python-3.6.2-blue.svg?style=flat-square)](https://www.python.org/downloads/release/python-362/)
+[![Django](https://img.shields.io/badge/django-1.11.4-blue.svg?style=flat-square)](https://www.djangoproject.com/)
+[![Django Rest Framework](https://img.shields.io/badge/django_rest_framework-3.4.0-blue.svg?style=flat-square)](http://www.django-rest-framework.org/)
+[![Build Status](https://travis-ci.org/QingdaoU/OnlineJudge.svg?branch=master)](https://travis-ci.org/QingdaoU/OnlineJudge)
 
-基于 Python 和 Django 的在线评测平台。
+> #### An onlinejudge system based on Python and Vue. [Demo](http://v2.qduoj.com)
 
-主要特点:
- 
- - 基于 Docker，急速部署
- - 超级管理员管理全局，普通管理员任意创建小组和小组内比赛，方便布置作业和考试使用
- - 提供 Virtual Judge 和单点登录使用 API，不再繁琐的进行模拟登陆
- - 后台管理判题服务器，轻松分离 web 和判题服务器
+[中文文档](https://github.com/QingdaoU/OnlineJudge/blob/2.0/README-CN.md)
 
-安装文档: https://github.com/QingdaoU/OnlineJudge/wiki
+## Overview
 
-OpenAPI文档: https://github.com/QingdaoU/OnlineJudgeOpenAPI
++ Based on Docker; One-click deployment
++ Separated backend and frontend; Modular programming; Micro service
++ ACM/OI rule support; realtime/non-realtime rank support
++ Amazing charting and visualization
++ Template-problem support
++ More reasonable permission control
++ Multi-language support: `C`, `C++`, `Java`, `Python2`, `Python3`
++ Markdown & MathJax support
++ Contest participants IP limit(CIDR)
 
-Demo: https://qduoj.com
+Main modules are available below:
 
-License: The Star And Thank Author License
++ Backend(Django): [https://github.com/QingdaoU/OnlineJudge](https://github.com/QingdaoU/OnlineJudge)
++ Frontend(Vue): [https://github.com/QingdaoU/OnlineJudgeFE](https://github.com/QingdaoU/OnlineJudgeFE)
++ Judger Sandbox(Seccomp): [https://github.com/QingdaoU/Judger](https://github.com/QingdaoU/Judger)
++ JudgeServer(A wrapper for Judger): [https://github.com/QingdaoU/JudgeServer](https://github.com/QingdaoU/JudgeServer)
 
-交流QQ群: https://github.com/QingdaoU/OnlineJudge/wiki/QQ群
+## Installation
 
-TODO：
+Follow me:  [https://github.com/QingdaoU/OnlineJudgeDeploy/tree/2.0](https://github.com/QingdaoU/OnlineJudgeDeploy/tree/2.0)
 
- - 完善测试
+## Documents
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2028%20-%20%E9%A2%98%E7%9B%AE%E5%88%97%E8%A1%A8%20-%20https___qduoj.com_problems_.png)
+[http://docs.onlinejudge.me/](http://docs.onlinejudge.me/)
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2029%20-%20A%20%20%20B%20Problem%20-%20https___qduoj.com_problem_1_.png)
+## Screenshots
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2030%20-%20%E6%88%91%E7%9A%84%E6%8F%90%E4%BA%A4%E8%AF%A6%E6%83%85%20-%20https___qduoj.com_submission_5b229926a4218d43d9e75158be0d1bf4_.png)
+### Frontend:
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2031%20-%20C%E8%AF%AD%E8%A8%80%E5%AE%9E%E9%AA%8C%E7%BB%83%E4%B9%A0%EF%BC%88%E4%B8%80%EF%BC%89%20-%20https___qduoj.com_contest_23_.png)
+![problem-list](https://user-images.githubusercontent.com/20637881/33372506-402022e4-d539-11e7-8e64-6656f8ceb75a.png)
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2035%20-%20%E6%AF%94%E8%B5%9B%E6%8E%92%E5%90%8D%20-%20https___qduoj.com_contest_17_rank_.png)
+![problem-details](https://user-images.githubusercontent.com/20637881/33372507-4061a782-d539-11e7-8835-076ddae6b529.png)
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2033%20-%20%E5%9C%A8%E7%BA%BF%E8%AF%84%E6%B5%8B%E7%B3%BB%E7%BB%9F%20-%20%E5%90%8E%E5%8F%B0%E7%AE%A1%E7%90%86%20-%20https___qduoj.com_admin_%23problem_problem_list.png)
+![statistic-info](https://user-images.githubusercontent.com/20637881/33372508-40a0c6ce-d539-11e7-8d5e-024541b76750.png)
 
-![](http://7xk96g.com1.z0.glb.clouddn.com/oj-preview/FireShot%20Capture%2034%20-%20%E5%9C%A8%E7%BA%BF%E8%AF%84%E6%B5%8B%E7%B3%BB%E7%BB%9F%20-%20%E5%90%8E%E5%8F%B0%E7%AE%A1%E7%90%86%20-%20https___qduoj.com_admin_%23contest_contest_list.png)
+![contest-list](https://user-images.githubusercontent.com/20637881/33372509-40d880dc-d539-11e7-9eba-1f08dcb6b9a0.png)
+
+You can control the menu and chart status in rankings.
+
+![acm-rankings](https://user-images.githubusercontent.com/20637881/33372510-41117f68-d539-11e7-9947-70e60bad3cf2.png)
+
+![oi-rankings](https://user-images.githubusercontent.com/20637881/33372511-41d406fa-d539-11e7-9947-7a2a088785b0.png)
+
+![status](https://user-images.githubusercontent.com/20637881/33372512-420ba240-d539-11e7-8645-594cac4a0b78.png)
+
+![status-details](https://user-images.githubusercontent.com/20637881/33365523-787bd0ea-d523-11e7-953f-dacbf7a506df.png)
+
+![user-home](https://user-images.githubusercontent.com/20637881/33365521-7842d808-d523-11e7-84c1-2e2aa0079f32.png)
+
+### Admin: 
+
+![admin-users](https://user-images.githubusercontent.com/20637881/33372516-42c34fda-d539-11e7-9f4e-5109477f83be.png)
+
+![judge-server](https://user-images.githubusercontent.com/20637881/33372517-42faef9e-d539-11e7-9f17-df9be3583900.png)
+
+![create-problem](https://user-images.githubusercontent.com/20637881/33372513-42472162-d539-11e7-8659-5497bf52dbea.png)
+
+![create-contest](https://user-images.githubusercontent.com/20637881/33372514-428ab922-d539-11e7-8f68-da55dedf3ad3.png)
+
+## Browser Support
+
+Modern browsers(chrome, firefox) and Internet Explorer 10+.
+
+## Thanks
+
++ I'd appreciate a star if you find this helpful.
++ Thanks to everyone that contributes to this project.
++ Special thanks to [heb1c](https://github.com/hebicheng), who has given us a lot of suggestions.
+
+## License
+
+[MIT](http://opensource.org/licenses/MIT)

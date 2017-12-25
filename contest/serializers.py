@@ -1,119 +1,108 @@
-# coding=utf-8
-import json
-from rest_framework import serializers
-from django.utils import timezone
-import datetime
-from account.models import User
-from account.serializers import UserSerializer
-from .models import Contest, ContestProblem
+from utils.api import UsernameSerializer, serializers
+
+from .models import Contest, ContestAnnouncement, ContestRuleType
+from .models import ACMContestRank, OIContestRank
 
 
-class CreateContestSerializer(serializers.Serializer):
-    title = serializers.CharField(max_length=40)
-    description = serializers.CharField(max_length=5000)
-    contest_type = serializers.IntegerField()
-    real_time_rank = serializers.BooleanField()
-    password = serializers.CharField(max_length=30, required=False, default=None)
+class CreateConetestSeriaizer(serializers.Serializer):
+    title = serializers.CharField(max_length=128)
+    description = serializers.CharField()
     start_time = serializers.DateTimeField()
     end_time = serializers.DateTimeField()
-    groups = serializers.ListField(child=serializers.IntegerField(), required=False, default=[])
+    rule_type = serializers.ChoiceField(choices=[ContestRuleType.ACM, ContestRuleType.OI])
+    password = serializers.CharField(allow_blank=True, max_length=32)
     visible = serializers.BooleanField()
+    real_time_rank = serializers.BooleanField()
+    allowed_ip_ranges = serializers.ListField(child=serializers.CharField(max_length=32), allow_empty=True)
 
 
-class DateTimeLocal(serializers.DateTimeField):
-    def to_representation(self, value):
-        return timezone.localtime(value)
+class EditConetestSeriaizer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField(max_length=128)
+    description = serializers.CharField()
+    start_time = serializers.DateTimeField()
+    end_time = serializers.DateTimeField()
+    password = serializers.CharField(allow_blank=True, allow_null=True, max_length=32)
+    visible = serializers.BooleanField()
+    real_time_rank = serializers.BooleanField()
+    allowed_ip_ranges = serializers.ListField(child=serializers.CharField(max_length=32))
 
 
-class ContestSerializer(serializers.ModelSerializer):
-    class UserSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = User
-            fields = ["username"]
-
-    created_by = UserSerializer()
-    start_time = DateTimeLocal()
-    end_time = DateTimeLocal()
+class ContestAdminSerializer(serializers.ModelSerializer):
+    created_by = UsernameSerializer()
+    status = serializers.CharField()
+    contest_type = serializers.CharField()
 
     class Meta:
         model = Contest
+        fields = "__all__"
 
 
-class EditContestSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    title = serializers.CharField(max_length=40)
-    description = serializers.CharField(max_length=10000)
-    contest_type = serializers.IntegerField()
-    real_time_rank = serializers.BooleanField()
-    password = serializers.CharField(max_length=30, required=False, default=None)
-    start_time = serializers.DateTimeField()
-    end_time = serializers.DateTimeField()
-    groups = serializers.ListField(child=serializers.IntegerField(), required=False, default=[])
-    visible = serializers.BooleanField()
+class ContestSerializer(ContestAdminSerializer):
+    class Meta:
+        model = Contest
+        exclude = ("password", "visible", "allowed_ip_ranges")
 
 
-class ContestProblemSampleSerializer(serializers.ListField):
-    input = serializers.CharField(max_length=3000)
-    output = serializers.CharField(max_length=3000)
-
-
-class JSONField(serializers.Field):
-    def to_representation(self, value):
-        return json.loads(value)
-
-
-class CreateContestProblemSerializer(serializers.Serializer):
-    contest_id = serializers.IntegerField()
-    title = serializers.CharField(max_length=50)
-    description = serializers.CharField(max_length=10000)
-    input_description = serializers.CharField(max_length=10000)
-    output_description = serializers.CharField(max_length=10000)
-    # [{"input": "1 1", "output": "2"}]
-    samples = ContestProblemSampleSerializer()
-    test_case_id = serializers.CharField(max_length=40)
-    time_limit = serializers.IntegerField()
-    memory_limit = serializers.IntegerField()
-    spj = serializers.BooleanField()
-    spj_language = serializers.IntegerField(required=False, default=None)
-    spj_code = serializers.CharField(max_length=10000, required=False, default=None)
-    hint = serializers.CharField(max_length=3000, allow_blank=True)
-    score = serializers.IntegerField(required=False, default=0)
-    sort_index = serializers.CharField(max_length=30)
-
-
-class ContestProblemSerializer(serializers.ModelSerializer):
-    class ContestSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = Contest
-            fields = ["title", "id"]
-
-    samples = JSONField()
-    contest = ContestSerializer()
-    created_by = UserSerializer()
+class ContestAnnouncementSerializer(serializers.ModelSerializer):
+    created_by = UsernameSerializer()
 
     class Meta:
-        model = ContestProblem
+        model = ContestAnnouncement
+        fields = "__all__"
 
 
-class EditContestProblemSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    title = serializers.CharField(max_length=50)
-    description = serializers.CharField(max_length=10000)
-    input_description = serializers.CharField(max_length=10000)
-    output_description = serializers.CharField(max_length=10000)
-    test_case_id = serializers.CharField(max_length=40)
-    time_limit = serializers.IntegerField()
-    memory_limit = serializers.IntegerField()
-    spj = serializers.BooleanField()
-    spj_language = serializers.IntegerField(required=False, default=None)
-    spj_code = serializers.CharField(max_length=10000, required=False, default=None)
-    samples = ContestProblemSampleSerializer()
-    hint = serializers.CharField(max_length=3000, allow_blank=True)
+class CreateContestAnnouncementSerializer(serializers.Serializer):
+    contest_id = serializers.IntegerField()
+    title = serializers.CharField(max_length=128)
+    content = serializers.CharField()
     visible = serializers.BooleanField()
-    sort_index = serializers.CharField(max_length=30)
-    score = serializers.IntegerField(required=False, default=0)
+
+
+class EditContestAnnouncementSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField(max_length=128, required=False)
+    content = serializers.CharField(required=False, allow_blank=True)
+    visible = serializers.BooleanField(required=False)
 
 
 class ContestPasswordVerifySerializer(serializers.Serializer):
     contest_id = serializers.IntegerField()
-    password = serializers.CharField(max_length=30)
+    password = serializers.CharField(max_length=30, required=True)
+
+
+class ACMContestRankSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ACMContestRank
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        self.is_contest_admin = kwargs.pop("is_contest_admin", False)
+        super().__init__(*args, **kwargs)
+
+    def get_user(self, obj):
+        return UsernameSerializer(obj.user, need_real_name=self.is_contest_admin).data
+
+
+class OIContestRankSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OIContestRank
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        self.is_contest_admin = kwargs.pop("is_contest_admin", False)
+        super().__init__(*args, **kwargs)
+
+    def get_user(self, obj):
+        return UsernameSerializer(obj.user, need_real_name=self.is_contest_admin).data
+
+
+class ACMContesHelperSerializer(serializers.Serializer):
+    contest_id = serializers.IntegerField()
+    problem_id = serializers.CharField()
+    rank_id = serializers.IntegerField()
+    checked = serializers.BooleanField()
