@@ -6,7 +6,7 @@ from .models import JudgeServer
 class EditSMTPConfigSerializer(serializers.Serializer):
     server = serializers.CharField(max_length=128)
     port = serializers.IntegerField(default=25)
-    email = serializers.EmailField(max_length=128)
+    email = serializers.CharField(max_length=256)
     password = serializers.CharField(max_length=128, required=False, allow_null=True, allow_blank=True)
     tls = serializers.BooleanField()
 
@@ -43,4 +43,9 @@ class JudgeServerHeartbeatSerializer(serializers.Serializer):
     memory = serializers.FloatField(min_value=0, max_value=100)
     cpu = serializers.FloatField(min_value=0, max_value=100)
     action = serializers.ChoiceField(choices=("heartbeat", ))
-    service_url = serializers.CharField(max_length=256, required=False)
+    service_url = serializers.CharField(max_length=256)
+
+
+class EditJudgeServerSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    is_disabled = serializers.BooleanField()

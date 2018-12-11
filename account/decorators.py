@@ -1,10 +1,8 @@
 import functools
-
-from utils.api import JSONResponse
-
-from .models import ProblemPermission
-
+from problem.models import Problem
 from contest.models import Contest, ContestType, ContestStatus, ContestRuleType
+from utils.api import JSONResponse, APIError
+from .models import ProblemPermission
 
 
 class BasePermissionDecorator(object):
@@ -81,17 +79,17 @@ def check_contest_permission(check_type="details"):
             except Contest.DoesNotExist:
                 return self.error("Contest %s doesn't exist" % contest_id)
 
+            # Anonymous
+            if not user.is_authenticated():
+                return self.error("Please login first.")
+
             # creator or owner
-            if user.is_authenticated() and user.is_contest_admin(self.contest):
+            if user.is_contest_admin(self.contest):
                 return func(*args, **kwargs)
 
             if self.contest.contest_type == ContestType.PASSWORD_PROTECTED_CONTEST:
-                # Anonymous
-                if not user.is_authenticated():
-                    return self.error("Please login first.")
                 # password error
-                if ("accessible_contests" not in request.session) or \
-                        (self.contest.id not in request.session["accessible_contests"]):
+                if self.contest.id not in request.session.get("accessible_contests", []):
                     return self.error("Password is required.")
 
             # regular user get contest problems, ranks etc. before contest started
@@ -104,7 +102,18 @@ def check_contest_permission(check_type="details"):
                     return self.error(f"No permission to get {check_type}")
 
             return func(*args, **kwargs)
-
         return _check_permission
-
     return decorator
+
+
+def ensure_created_by(obj, user):
+    e = APIError(msg=f"{obj.__class__.__name__} does not exist")
+    if not user.is_admin_role():
+        raise e
+    if user.is_super_admin():
+        return
+    if isinstance(obj, Problem):
+        if not user.can_mgmt_all_problem() and obj.created_by != user:
+            raise e
+    elif obj.created_by != user:
+        raise e

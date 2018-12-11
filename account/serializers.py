@@ -86,7 +86,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class EditUserSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     username = serializers.CharField(max_length=32)
-    real_name = serializers.CharField(max_length=32, allow_blank=True)
+    real_name = serializers.CharField(max_length=32, allow_blank=True, allow_null=True)
     password = serializers.CharField(min_length=6, allow_blank=True, required=False, default=None)
     email = serializers.EmailField(max_length=64)
     admin_type = serializers.ChoiceField(choices=(AdminType.REGULAR_USER, AdminType.ADMIN, AdminType.SUPER_ADMIN))
@@ -105,6 +105,7 @@ class EditUserProfileSerializer(serializers.Serializer):
     github = serializers.CharField(max_length=64, allow_blank=True, required=False)
     school = serializers.CharField(max_length=64, allow_blank=True, required=False)
     major = serializers.CharField(max_length=64, allow_blank=True, required=False)
+    language = serializers.CharField(max_length=32, allow_blank=True, required=False)
 
 
 class ApplyResetPasswordSerializer(serializers.Serializer):
@@ -119,7 +120,6 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 
 class SSOSerializer(serializers.Serializer):
-    appkey = serializers.CharField()
     token = serializers.CharField()
 
 

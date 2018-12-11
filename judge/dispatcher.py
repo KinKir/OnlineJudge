@@ -6,7 +6,6 @@ from urllib.parse import urljoin
 import requests
 from django.db import transaction
 from django.db.models import F
-from django.conf import settings
 
 from account.models import User
 from conf.models import JudgeServer
@@ -47,20 +46,20 @@ class DispatcherBase(object):
     @staticmethod
     def choose_judge_server():
         with transaction.atomic():
-            servers = JudgeServer.objects.select_for_update().all().order_by("task_number")
+            servers = JudgeServer.objects.select_for_update().filter(is_disabled=False).order_by("task_number")
             servers = [s for s in servers if s.status == "normal"]
-            if servers:
-                server = servers[0]
-                server.used_instance_number = F("task_number") + 1
-                server.save()
-                return server
+            for server in servers:
+                if server.task_number <= server.cpu_core * 2:
+                    server.task_number = F("task_number") + 1
+                    server.save()
+                    return server
 
     @staticmethod
     def release_judge_server(judge_server_id):
         with transaction.atomic():
             # 使用原子操作, 同时因为use和release中间间隔了判题过程,需要重新查询一下
             server = JudgeServer.objects.get(id=judge_server_id)
-            server.used_instance_number = F("task_number") - 1
+            server.task_number = F("task_number") - 1
             server.save()
 
 
@@ -90,6 +89,8 @@ class JudgeDispatcher(DispatcherBase):
         super().__init__()
         self.submission = Submission.objects.get(id=submission_id)
         self.contest_id = self.submission.contest_id
+        self.last_result = self.submission.result if self.submission.info else None
+
         if self.contest_id:
             self.problem = Problem.objects.select_related("contest").get(id=problem_id, contest_id=self.contest_id)
             self.contest = self.problem.contest
@@ -154,11 +155,7 @@ class JudgeDispatcher(DispatcherBase):
 
         Submission.objects.filter(id=self.submission.id).update(result=JudgeStatus.JUDGING)
 
-        service_url = server.service_url
-        # not set service_url, it should be a linked container
-        if not service_url:
-            service_url = settings.DEFAULT_JUDGE_SERVER_SERVICE_URL
-        resp = self._request(urljoin(service_url, "/judge"), data=data)
+        resp = self._request(urljoin(server.service_url, "/judge"), data=data)
         if resp["err"]:
             self.submission.result = JudgeStatus.COMPILE_ERROR
             self.submission.statistic_info["err_info"] = resp["data"]
@@ -182,15 +179,56 @@ class JudgeDispatcher(DispatcherBase):
         if self.contest_id:
             if self.contest.status != ContestStatus.CONTEST_UNDERWAY or \
                     User.objects.get(id=self.submission.user_id).is_contest_admin(self.contest):
-                logger.info("Contest debug mode, id: " + str(self.contest_id) + ", submission id: " + self.submission.id)
+                logger.info(
+                    "Contest debug mode, id: " + str(self.contest_id) + ", submission id: " + self.submission.id)
                 return
             self.update_contest_problem_status()
             self.update_contest_rank()
         else:
-            self.update_problem_status()
+            if self.last_result:
+                self.update_problem_status_rejudge()
+            else:
+                self.update_problem_status()
 
         # 至此判题结束，尝试处理任务队列中剩余的任务
         process_pending_task()
+
+    def update_problem_status_rejudge(self):
+        result = str(self.submission.result)
+        problem_id = str(self.problem.id)
+        with transaction.atomic():
+            # update problem status
+            problem = Problem.objects.select_for_update().get(contest_id=self.contest_id, id=self.problem.id)
+            if self.last_result != JudgeStatus.ACCEPTED and self.submission.result == JudgeStatus.ACCEPTED:
+                problem.accepted_number += 1
+            problem_info = problem.statistic_info
+            problem_info[self.last_result] = problem_info.get(self.last_result, 1) - 1
+            problem_info[result] = problem_info.get(result, 0) + 1
+            problem.save(update_fields=["accepted_number", "statistic_info"])
+
+            profile = User.objects.select_for_update().get(id=self.submission.user_id).userprofile
+            if problem.rule_type == ProblemRuleType.ACM:
+                acm_problems_status = profile.acm_problems_status.get("problems", {})
+                if acm_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED:
+                    acm_problems_status[problem_id]["status"] = self.submission.result
+                    if self.submission.result == JudgeStatus.ACCEPTED:
+                        profile.accepted_number += 1
+                profile.acm_problems_status["problems"] = acm_problems_status
+                profile.save(update_fields=["accepted_number", "acm_problems_status"])
+
+            else:
+                oi_problems_status = profile.oi_problems_status.get("problems", {})
+                score = self.submission.statistic_info["score"]
+                if oi_problems_status[problem_id]["status"] != JudgeStatus.ACCEPTED:
+                    # minus last time score, add this tim score
+                    profile.add_score(this_time_score=score,
+                                      last_time_score=oi_problems_status[problem_id]["score"])
+                    oi_problems_status[problem_id]["score"] = score
+                    oi_problems_status[problem_id]["status"] = self.submission.result
+                    if self.submission.result == JudgeStatus.ACCEPTED:
+                        profile.accepted_number += 1
+                profile.oi_problems_status["problems"] = oi_problems_status
+                profile.save(update_fields=["accepted_number", "oi_problems_status"])
 
     def update_problem_status(self):
         result = str(self.submission.result)
